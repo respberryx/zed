@@ -1276,7 +1276,7 @@ pub mod tests {
     use project::{FakeFs, Project};
     use serde_json::json;
     use settings::SettingsStore;
-    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use text::Point;
 
     use super::*;
@@ -1300,24 +1300,21 @@ pub mod tests {
             fake_server.handle_request::<lsp::request::InlayHintRequest, _, _>(move |params, _| {
                 let task_lsp_request_count = Arc::clone(&lsp_request_count);
                 async move {
+                    let i = task_lsp_request_count.fetch_add(1, Ordering::Release) + 1;
                     assert_eq!(
                         params.text_document.uri,
                         lsp::Url::from_file_path(file_with_hints).unwrap(),
                     );
-                    Ok(Some(
-                        (0..task_lsp_request_count.load(Ordering::Acquire))
-                            .map(|i| lsp::InlayHint {
-                                position: lsp::Position::new(0, i),
-                                label: lsp::InlayHintLabel::String(i.to_string()),
-                                kind: None,
-                                text_edits: None,
-                                tooltip: None,
-                                padding_left: None,
-                                padding_right: None,
-                                data: None,
-                            })
-                            .collect(),
-                    ))
+                    Ok(Some(vec![lsp::InlayHint {
+                        position: lsp::Position::new(0, i),
+                        label: lsp::InlayHintLabel::String(i.to_string()),
+                        kind: None,
+                        text_edits: None,
+                        tooltip: None,
+                        padding_left: None,
+                        padding_right: None,
+                        data: None,
+                    }]))
                 }
             });
         })
@@ -1777,7 +1774,7 @@ pub mod tests {
                 let lsp_request_count = lsp_request_count.clone();
                 fake_server.handle_request::<lsp::request::InlayHintRequest, _, _>(
                     move |params, _| {
-                        lsp_request_count.fetch_add(1, Ordering::SeqCst);
+                        lsp_request_count.fetch_add(1, Ordering::Release);
                         async move {
                             assert_eq!(
                                 params.text_document.uri,
